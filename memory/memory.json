@@ -1,7 +1,52 @@
 {
-    "user":{"name":"Elvin"},
-    "assistant":{"name":"IRIS","full_form":"Information Reasoning Interaction System","purpose":"A personal AI assistant designed to understand the user, remember what matters, help solve problems, manage tasks, and make everyday life easier."},
-    "preferences":{"general":"short answers"},
-    "learning":["Linux","Networking","Cybersecurity"],
-    "facts":["Studying Linux for technical support role"]
+    "user": {
+        "name": "Admin"
+    },
+    "assistant": {
+        "name": "IRIS",
+        "full_form": "Information Reasoning Interaction System",
+        "purpose": "A personal AI assistant designed to understand the user, remember what matters, help solve problems, manage tasks, and make everyday life easier."
+    },
+    "preferences": [
+        "short answers"
+    ],
+    "learning": [
+        "Linux"
+    ],
+    "personal": {
+        "favorite_colour": "violet",
+        "favorite_food": [
+            "biriyani",
+            "shwarma"
+        ],
+        "personal_email": "elvinjoy88@gmail.com",
+        "phone_numbers": {
+            "india": "+91 8129808383",
+            "uae": "+971 56 714 6689"
+        }
+    },
+    "family": {
+        "mother": {
+            "name": "Nicy Antony"
+        },
+        "sister": {
+            "name": "Emerin Joy"
+        }
+    },
+    "pets": [
+        {
+            "name": "Puffy",
+            "breed": "Pomeranian",
+            "colour": "white"
+        }
+    ],
+    "work": {
+        "role": "Technical Support Assistant",
+        "location": "Dubai",
+        "work_email": "elvin@ergonomics-me.com",
+        "company_address": "1614 Parklane Tower, Business Bay, Dubai"
+    },
+    "facts": [
+        "your indian phone number is +91 8129808383 and your personal email is elvinjoy88@gmail.com"
+    ]
 }
