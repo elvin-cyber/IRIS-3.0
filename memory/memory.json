@@ -1,6 +1,6 @@
 {
     "user": {
-        "name": "Admin"
+        "name": "dingan"
     },
     "assistant": {
         "name": "IRIS",
@@ -20,6 +20,7 @@
             "shwarma"
         ],
         "personal_email": "elvinjoy88@gmail.com",
+        "work_email": "elvin@ergonomics-me.com",
         "phone_numbers": {
             "india": "+91 8129808383",
             "uae": "+971 56 714 6689"

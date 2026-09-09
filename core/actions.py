@@ -9,7 +9,28 @@ TOOLS = {
 
 
 _NAME_PATTERNS = [
-    r"^(?:change my name to|call me|my name is)\s+(.+)$",
+    r"^(?:please\s+)?call me\s+(.+)$",
+    r"^(?:please\s+)?you can call me\s+(.+)$",
+    r"^my name is\s+(.+)$",
+    r"^my new name is\s+(.+)$",
+    r"^change my name to\s+(.+)$",
+    r"^change my name as\s+(.+)$",
+    r"^set my name to\s+(.+)$",
+    r"^set my name as\s+(.+)$",
+    r"^update my name to\s+(.+)$",
+    r"^rename me to\s+(.+)$",
+    r"^rename me as\s+(.+)$",
+    r"^switch my name to\s+(.+)$",
+    r"^make my name\s+(.+)$",
+    r"^name me\s+(.+)$",
+    r"^i(?:'d| would) like to be called\s+(.+)$",
+    r"^i want to be called\s+(.+)$",
+    r"^i go by\s+(.+)$",
+    r"^i(?:'m| am) known as\s+(.+)$",
+    r"^refer to me as\s+(.+)$",
+    r"^address me as\s+(.+)$",
+    r"^from now on,? call me\s+(.+)$",
+    r"^from now on,? my name is\s+(.+)$",
 ]
 
 _PREFERENCE_PATTERNS = [
@@ -47,6 +68,43 @@ _QUESTION_STARTERS = (
     "can", "could", "should", "would", "will",
 )
 
+# =========================================================
+# TOOL KEYWORD DETECTION
+#
+# If a question mentions one of these, route straight to the
+# matching tool instead of letting the generic question
+# pre-filter force it to "answer".
+# =========================================================
+
+_TOOL_KEYWORDS = [
+    ("ram", "ram"),
+    ("memory usage", "ram"),
+    ("disk space", "disk"),
+    ("storage", "disk"),
+    ("disk", "disk"),
+    ("cpu", "cpu"),
+    ("processor", "cpu"),
+    ("computer name", "hostname"),
+    ("hostname", "hostname"),
+    ("pc name", "hostname"),
+    ("logged in as", "current_user"),
+    ("current user", "current_user"),
+    ("ip address", "ipconfig"),
+    ("ip config", "ipconfig"),
+    ("ipconfig", "ipconfig"),
+    ("windows version", "windows_version"),
+    ("os version", "windows_version"),
+    ("system info", "system"),
+    ("system information", "system"),
+]
+
+
+def _detect_tool(lower):
+    for keyword, tool in _TOOL_KEYWORDS:
+        if keyword in lower:
+            return tool
+    return None
+
 
 def _is_question(text_lower):
     if text_lower.endswith("?"):
@@ -82,8 +140,14 @@ def _prefilter(message):
         if m:
             return {"action": "memory", "category": "fact", "fact": text}
 
-    # No statement pattern matched — if it looks like a
-    # question, force "answer" and skip the LLM entirely.
+    # Check tool keywords BEFORE forcing "answer" on questions —
+    # "what is my ram" is a question, but it needs live data.
+    tool = _detect_tool(lower)
+    if tool:
+        return {"action": "tool", "tool": tool}
+
+    # No statement pattern or tool keyword matched — if it looks
+    # like a question, force "answer" and skip the LLM entirely.
     if _is_question(lower):
         return {"action": "answer"}
 
@@ -92,6 +156,8 @@ def _prefilter(message):
 
 def decide_action(ask_iris, message, memory, conversation):
 
+    # Deterministic fast path — skip the LLM entirely if the
+    # message obviously matches a statement/question/tool pattern.
     pre = _prefilter(message)
     if pre:
         return pre
@@ -153,6 +219,19 @@ Examples:
                 return {"action": "answer"}
             if not decision.get("fact"):
                 return {"action": "answer"}
+
+            # Safeguard: never let the LLM silently overwrite the
+            # user's name unless the message explicitly says so.
+            # This prevents things like tool output (e.g. the OS
+            # username from the "current_user" tool) from getting
+            # hallucinated into a name change.
+            if decision.get("category") == "name":
+                explicit = any(
+                    re.match(p, message.strip().lower())
+                    for p in _NAME_PATTERNS
+                )
+                if not explicit:
+                    decision["category"] = "fact"
 
         return decision
 
