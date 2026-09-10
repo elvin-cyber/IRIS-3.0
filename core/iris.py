@@ -29,9 +29,9 @@ def respond(message):
     add_message("user",message)
     decision=decide_action(ask_iris,message,get_memory_context(),get_recent_messages(8))
     if decision["action"]=="memory":
-        cat=decision.get("category","fact");fact=decision.get("fact")
+        cat=decision.get("category","fact");fact=decision.get("fact");subject=decision.get("subject")
         if fact:
-            add_memory(cat,fact)
+            add_memory(cat,fact,subject)
             answer=f"Got it. I'll call you {fact} from now on." if cat=="name" else "Got it. I'll remember that."
             add_message("assistant",answer);return answer
     if decision["action"]=="tool":

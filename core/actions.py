@@ -48,6 +48,65 @@ _FACT_PATTERNS = [
 ]
 
 # =========================================================
+# DYNAMIC-SECTION PATTERNS
+#
+# These catch common, high-confidence phrasings and route
+# them straight into a structured section (family, pets, etc.)
+# with a proper subject, BEFORE the generic _FACT_PATTERNS
+# above would otherwise swallow them as a flat "fact" string.
+# =========================================================
+
+_FAMILY_RELATIONS = (
+    "father", "dad", "mother", "mum", "mom", "sister", "brother",
+    "wife", "husband", "son", "daughter", "grandfather", "grandmother",
+    "uncle", "aunt", "cousin",
+)
+
+_FAMILY_NAME_PATTERN = re.compile(
+    r"^my (" + "|".join(_FAMILY_RELATIONS) + r")'?s?\s+name is\s+(.+)$"
+)
+
+_NEW_PET_PATTERN = re.compile(
+    r"^i (?:got|have|adopted|bought) a new (?:dog|cat|pet|puppy|kitten)"
+    r"(?:\s+named|\s+called)?\s+([A-Za-z]+)"
+)
+
+_PET_BREED_TAIL_PATTERN = re.compile(
+    r"(?:he'?s|she'?s|it'?s|who is)\s+a\s+(.+)$"
+)
+
+
+def _try_dynamic_patterns(text, lower):
+    m = _FAMILY_NAME_PATTERN.match(lower)
+    if m:
+        relation = m.group(1)
+        name = text[m.start(2):m.end(2)].strip()
+        return {
+            "action": "memory",
+            "category": "family",
+            "subject": relation,
+            "fact": f"name: {name}",
+        }
+
+    m = _NEW_PET_PATTERN.match(lower)
+    if m:
+        name = text[m.start(1):m.end(1)].strip()
+        breed_match = _PET_BREED_TAIL_PATTERN.search(lower)
+        if breed_match:
+            breed = text[breed_match.start(1):breed_match.end(1)].strip().rstrip(".")
+            fact = f"breed: {breed}"
+        else:
+            fact = "new pet"
+        return {
+            "action": "memory",
+            "category": "pets",
+            "subject": name,
+            "fact": fact,
+        }
+
+    return None
+
+# =========================================================
 # QUESTION DETECTION
 #
 # If the message is clearly a question, force "answer"
@@ -141,6 +200,12 @@ def _prefilter(message):
         if m:
             return {"action": "memory", "category": "learning", "fact": text}
 
+    # High-confidence structured patterns take priority over the
+    # generic catch-all fact pattern below.
+    dynamic = _try_dynamic_patterns(text, lower)
+    if dynamic:
+        return dynamic
+
     for pat in _FACT_PATTERNS:
         m = re.match(pat, lower)
         if m:
@@ -183,6 +248,21 @@ preferences, favorites, what they're learning, possessions).
 
 Memory categories: name, preference, learning, fact.
 
+You may ALSO use a custom category for domain-specific info
+that deserves its own section, such as "pets", "family",
+"work", "vehicle", "hobbies", etc. When you do, also include
+a "subject" naming the specific thing this is about (e.g. a
+pet's name, a family member's relation, "car"). Example:
+
+User: "I got a new cat named Milo, he's a Persian"
+{{"action": "memory", "category": "pets", "subject": "Milo", "fact": "breed: Persian"}}
+
+User: "my mother's birthday is 12 March"
+{{"action": "memory", "category": "family", "subject": "mother", "fact": "birthday: 12 March"}}
+
+If in doubt, or the fact doesn't fit any specific domain,
+just use category "fact" with no subject.
+
 Use "tool" only when live computer information is needed.
 Tools: system, ram, disk, cpu, hostname, current_user, ipconfig, windows_version.
 
@@ -198,6 +278,7 @@ Return ONLY valid JSON, no markdown, no explanation.
 Examples:
 {{"action": "answer"}}
 {{"action": "memory", "category": "fact", "fact": "mom's name is Nicy Antony"}}
+{{"action": "memory", "category": "pets", "subject": "Milo", "fact": "breed: Persian"}}
 {{"action": "tool", "tool": "ram"}}
 """
 
@@ -221,10 +302,22 @@ Examples:
             return {"action": "answer"}
 
         if action == "memory":
-            if decision.get("category") not in {"name", "preference", "learning", "fact"}:
+            category = decision.get("category")
+            fact = decision.get("fact")
+
+            if not category or not isinstance(category, str):
                 return {"action": "answer"}
-            if not decision.get("fact"):
+            if not fact:
                 return {"action": "answer"}
+
+            # Fixed categories are trusted as-is. Anything else is
+            # treated as a custom section name -- allow short,
+            # sane-looking identifiers only (reject anything that
+            # looks like garbage or an attempted injection).
+            fixed = {"name", "preference", "learning", "fact"}
+            if category not in fixed:
+                if not re.match(r"^[A-Za-z][A-Za-z0-9 _-]{1,30}$", category):
+                    return {"action": "answer"}
 
             # Safeguard: never let the LLM silently overwrite the
             # user's name unless the message explicitly says so.
