@@ -1,6 +1,6 @@
 import requests, threading, time, sys
 OLLAMA_URL="http://localhost:11434/api/chat"
-MODEL="qwen2.5:7b-instruct"
+MODEL="qwen2.5:14b-instruct"
 
 def think(stop):
     dots=0

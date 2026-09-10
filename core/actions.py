@@ -123,7 +123,13 @@ def _prefilter(message):
         m = re.match(pat, lower)
         if m:
             fact = text[m.start(1):m.end(1)].strip()
-            return {"action": "memory", "category": "name", "fact": fact}
+            # Strip trailing filler like "from now on" / "please"
+            # so it doesn't get duplicated in the reply template.
+            fact = re.sub(r"\s*,?\s*from now on\.?$", "", fact, flags=re.I).strip()
+            fact = re.sub(r"\s*,?\s*please\.?$", "", fact, flags=re.I).strip()
+            fact = fact.rstrip(".").strip()
+            if fact:
+                return {"action": "memory", "category": "name", "fact": fact}
 
     for pat in _PREFERENCE_PATTERNS:
         m = re.match(pat, lower)
