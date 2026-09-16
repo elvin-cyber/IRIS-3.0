@@ -1,5 +1,6 @@
 {
     "user": {
+        "name": "cypher",
         "real_name": "Elvin Joy"
     },
     "assistant": {
@@ -53,8 +54,7 @@
     },
     "facts": [
         "my fav movie is iron man",
-        "change my moms name to NIcy",
-        "change that to Nicy"
+        "change my moms name to NIcy"
     ],
     "hobbies": {
         "listening_to_music_and_playing_games": "listening to music and playing games"
