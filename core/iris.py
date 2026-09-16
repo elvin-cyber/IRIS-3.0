@@ -1,7 +1,7 @@
 from core.ollama import ask_iris
 from core.context import add_message,get_recent_messages
 from core.actions import decide_action
-from memory.manager import add_memory,get_memory_context,get_assistant_info
+from memory.manager import add_memory,get_memory_context,get_assistant_info,delete_memory,delete_by_query,update_by_query
 from tools.system_tools import run_tool
 
 def build_prompt():
@@ -34,6 +34,22 @@ def respond(message):
             add_memory(cat,fact,subject)
             answer=f"Got it. I'll call you {fact} from now on." if cat=="name" else "Got it. I'll remember that."
             add_message("assistant",answer);return answer
+    if decision["action"]=="update":
+        field=decision.get("query");value=decision.get("value")
+        updated=update_by_query(field,value) if field and value else None
+        if updated:
+            answer="Got it. I've updated that."
+        else:
+            add_memory("fact",message)
+            answer="Got it. I'll remember that."
+        add_message("assistant",answer);return answer
+    if decision["action"]=="delete":
+        if decision.get("category"):
+            removed=delete_memory(decision.get("category"),decision.get("subject"),decision.get("field"))
+        else:
+            removed=delete_by_query(decision.get("query"))
+        answer="Done. I've forgotten that." if removed else "I couldn't find that in memory to forget."
+        add_message("assistant",answer);return answer
     if decision["action"]=="tool":
         result=run_tool(decision.get("tool"))
         if result:

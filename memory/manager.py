@@ -233,6 +233,363 @@ def _flatten(prefix, value, lines):
             lines.append(f"{prefix}: {value}")
 
 
+def get_full_memory():
+    """Return the entire raw memory dict. (Read)"""
+    return load()
+
+
+def _iter_leaves(data, path=""):
+    """Yield (path, container, key_or_index, value) for every node in
+    the memory tree, so delete-by-query can search dict keys, nested
+    entries and list items in one pass."""
+    if isinstance(data, dict):
+        for k, v in data.items():
+            new_path = f"{path}.{k}" if path else k
+            yield (new_path, data, k, v)
+            yield from _iter_leaves(v, new_path)
+    elif isinstance(data, list):
+        for i, item in enumerate(data):
+            new_path = f"{path}[{i}]"
+            yield (new_path, data, i, item)
+            yield from _iter_leaves(item, new_path)
+
+
+def delete_memory(category, subject=None, field=None):
+    """Precise delete. (Delete)
+
+    - category only            -> removes the whole top-level section
+    - category + field         -> removes one key from a dict section
+    - category + subject       -> removes one entry (list item or
+                                   dict sub-entry) matching that subject
+    - category + subject+field -> removes one field from that entry
+    Returns True if something was actually removed, False otherwise.
+    """
+    data = load()
+    section_key = _normalize_key(category)
+    if section_key not in data:
+        return False
+    section = data[section_key]
+
+    if subject:
+        sub_norm = _normalize_key(subject)
+        if isinstance(section, list):
+            match = None
+            for item in section:
+                if isinstance(item, dict) and _normalize_key(str(item.get("name", ""))) == sub_norm:
+                    match = item
+                    break
+            if match is None:
+                return False
+            if field:
+                if field not in match:
+                    return False
+                del match[field]
+            else:
+                section.remove(match)
+        elif isinstance(section, dict):
+            entry = section.get(sub_norm)
+            if entry is None:
+                return False
+            if field:
+                if not isinstance(entry, dict) or field not in entry:
+                    return False
+                del entry[field]
+            else:
+                del section[sub_norm]
+        else:
+            return False
+    elif field:
+        if isinstance(section, dict) and field in section:
+            del section[field]
+        elif isinstance(section, list) and field in section:
+            section.remove(field)
+        else:
+            return False
+    else:
+        del data[section_key]
+
+    save(data)
+    return True
+
+
+def delete_by_query(query):
+    """Fuzzy delete for free-text requests like 'forget my favorite
+    colour' or 'delete puffy'. Searches every key, sub-entry and list
+    item for a normalized match and removes the first hit. Returns a
+    short path string describing what was removed, or None if nothing
+    matched. (Delete)"""
+    data = load()
+    norm_query = _normalize_key(query)
+    if not norm_query:
+        return None
+
+    for path, container, key, value in _iter_leaves(data):
+        if isinstance(container, dict):
+            key_norm = _normalize_key(str(key))
+            if key_norm == norm_query or norm_query in key_norm or key_norm in norm_query:
+                del container[key]
+                save(data)
+                return path
+            if isinstance(value, dict):
+                name_norm = _normalize_key(str(value.get("name", "")))
+                if name_norm and name_norm == norm_query:
+                    del container[key]
+                    save(data)
+                    return path
+        elif isinstance(container, list):
+            if isinstance(value, dict):
+                name_norm = _normalize_key(str(value.get("name", "")))
+                if name_norm and name_norm == norm_query:
+                    container.remove(value)
+                    save(data)
+                    return path
+            else:
+                item_norm = _normalize_key(str(value))
+                if item_norm and (item_norm == norm_query or norm_query in item_norm):
+                    container.remove(value)
+                    save(data)
+                    return path
+
+    return None
+
+
+def get_full_memory():
+    """Return the entire raw memory dict. (Read)"""
+    return load()
+
+
+def _iter_leaves(data, path=""):
+    """Yield (path, container, key_or_index, value) for every node in
+    the memory tree, so fuzzy search can look at dict keys, nested
+    entries and list items in one pass."""
+    if isinstance(data, dict):
+        for k, v in data.items():
+            new_path = f"{path}.{k}" if path else k
+            yield (new_path, data, k, v)
+            yield from _iter_leaves(v, new_path)
+    elif isinstance(data, list):
+        for i, item in enumerate(data):
+            new_path = f"{path}[{i}]"
+            yield (new_path, data, i, item)
+            yield from _iter_leaves(item, new_path)
+
+
+def _norm_for_search(text):
+    """Normalize text for fuzzy matching, folding common British/
+    American spelling differences (colour/color, favourite/favorite,
+    behaviour/behavior, ...) so 'favourite colour' and the stored key
+    'favorite_colour' compare equal."""
+    key = _normalize_key(text)
+    key = re.sub(r"our", "or", key)
+    return _apply_relation_aliases(key)
+
+
+_RELATION_ALIASES = {
+    "mom": "mother", "mum": "mother", "mommy": "mother", "mama": "mother",
+    "dad": "father", "daddy": "father", "papa": "father",
+    "bro": "brother", "sis": "sister",
+}
+
+_FAMILY_WORDS = {
+    "mother", "father", "sister", "brother", "son", "daughter", "wife",
+    "husband", "grandmother", "grandfather", "uncle", "aunt", "cousin",
+}
+
+
+def _apply_relation_aliases(normalized):
+    """Fold colloquial family-relation words (mom, dads, sisters, ...)
+    onto the canonical word used as the actual JSON key (mother,
+    father, sister, ...), token by token."""
+    tokens = normalized.split("_")
+    out = []
+    for t in tokens:
+        if t in _RELATION_ALIASES:
+            out.append(_RELATION_ALIASES[t])
+            continue
+        if len(t) > 3 and t.endswith("s"):
+            stem = t[:-1]
+            if stem in _RELATION_ALIASES:
+                out.append(_RELATION_ALIASES[stem])
+                continue
+            if stem in _FAMILY_WORDS:
+                out.append(stem)
+                continue
+        out.append(t)
+    return "_".join(out)
+
+
+def _immediate_parent_name(path):
+    """Given an _iter_leaves path like 'family.mother.name', return
+    the immediate parent segment ('mother'), so a generic key like
+    'name' can also be matched combined with its parent as
+    'mother_name'. Returns None if there's no parent segment."""
+    segments = [s.rstrip("]") for s in re.split(r"\.|\[", path) if s]
+    if len(segments) >= 2:
+        return segments[-2]
+    return None
+
+
+def _find_target(data, norm_query, exact_only=False):
+    """Search the memory tree for the best match to norm_query.
+    Tries an EXACT normalized match first across every dict key,
+    named sub-entry, and list item; only if nothing matches exactly
+    does it fall back to a conservative partial match (and even then,
+    only against strings of a reasonable length, to avoid a short
+    generic key like 'name' matching inside a longer query).
+    Returns (container, key_or_index, path) or None.
+    """
+    # Pass 1: exact match.
+    for path, container, key, value in _iter_leaves(data):
+        if isinstance(container, dict):
+            key_norm = _norm_for_search(str(key))
+            parent = _immediate_parent_name(path)
+            composite = _norm_for_search(f"{parent}_{key}") if parent else None
+            if key_norm == norm_query or (composite and composite == norm_query):
+                return (container, key, path)
+            if isinstance(value, dict):
+                name_norm = _norm_for_search(str(value.get("name", "")))
+                if name_norm and name_norm == norm_query:
+                    return (container, key, path)
+        elif isinstance(container, list):
+            if isinstance(value, dict):
+                name_norm = _norm_for_search(str(value.get("name", "")))
+                if name_norm and name_norm == norm_query:
+                    return (container, key, path)
+            else:
+                if _norm_for_search(str(value)) == norm_query:
+                    return (container, key, path)
+
+    if exact_only:
+        return None
+
+    # Pass 2: conservative partial match (length-gated to avoid a
+    # short generic word swallowing an unrelated field).
+    for path, container, key, value in _iter_leaves(data):
+        if isinstance(value, (dict, list)):
+            continue
+        cand = _norm_for_search(str(key) if isinstance(container, dict) else str(value))
+        if not cand:
+            continue
+        shorter, longer = (cand, norm_query) if len(cand) <= len(norm_query) else (norm_query, cand)
+        if len(shorter) >= 5 and shorter in longer:
+            return (container, key, path)
+
+    return None
+
+
+def delete_memory(category, subject=None, field=None):
+    """Precise delete. (Delete)
+
+    - category only            -> removes the whole top-level section
+    - category + field         -> removes one key from a dict section
+    - category + subject       -> removes one entry (list item or
+                                   dict sub-entry) matching that subject
+    - category + subject+field -> removes one field from that entry
+    Returns True if something was actually removed, False otherwise.
+    """
+    data = load()
+    section_key = _normalize_key(category)
+    if section_key not in data:
+        return False
+    section = data[section_key]
+
+    if subject:
+        sub_norm = _normalize_key(subject)
+        if isinstance(section, list):
+            match = None
+            for item in section:
+                if isinstance(item, dict) and _normalize_key(str(item.get("name", ""))) == sub_norm:
+                    match = item
+                    break
+            if match is None:
+                return False
+            if field:
+                if field not in match:
+                    return False
+                del match[field]
+            else:
+                section.remove(match)
+        elif isinstance(section, dict):
+            entry = section.get(sub_norm)
+            if entry is None:
+                return False
+            if field:
+                if not isinstance(entry, dict) or field not in entry:
+                    return False
+                del entry[field]
+            else:
+                del section[sub_norm]
+        else:
+            return False
+    elif field:
+        if isinstance(section, dict) and field in section:
+            del section[field]
+        elif isinstance(section, list) and field in section:
+            section.remove(field)
+        else:
+            return False
+    else:
+        del data[section_key]
+
+    save(data)
+    return True
+
+
+def delete_by_query(query):
+    """Fuzzy delete for free-text requests like 'forget my favourite
+    colour' or 'delete puffy'. Returns a short path string describing
+    what was removed, or None if nothing matched. (Delete)"""
+    data = load()
+    norm_query = _norm_for_search(query)
+    if not norm_query:
+        return None
+
+    found = _find_target(data, norm_query)
+    if not found:
+        return None
+
+    container, key, path = found
+    del container[key]
+    save(data)
+    return path
+
+
+def update_by_query(query, value):
+    """Fuzzy update for free-text requests like 'change my favourite
+    colour to green'. Only ever overwrites an existing plain field
+    (never a whole section or named entry, to avoid clobbering
+    structured data). Returns a path string on success, or None if no
+    matching field exists yet. (Update)"""
+    data = load()
+    norm_query = _norm_for_search(query)
+    if not norm_query:
+        return None
+
+    def scan(exact_only):
+        for path, container, key, val in _iter_leaves(data):
+            if not isinstance(container, dict) or isinstance(val, (dict, list)):
+                continue
+            key_norm = _norm_for_search(str(key))
+            parent = _immediate_parent_name(path)
+            composite = _norm_for_search(f"{parent}_{key}") if parent else None
+            if key_norm == norm_query or (composite and composite == norm_query):
+                return (container, key, path)
+            if not exact_only:
+                shorter, longer = (key_norm, norm_query) if len(key_norm) <= len(norm_query) else (norm_query, key_norm)
+                if len(shorter) >= 5 and shorter in longer:
+                    return (container, key, path)
+        return None
+
+    found = scan(exact_only=True) or scan(exact_only=False)
+    if not found:
+        return None
+
+    container, key, path = found
+    container[key] = value
+    save(data)
+    return path
+
+
 def get_memory_context():
     data = load()
     lines = []

@@ -47,6 +47,22 @@ _FACT_PATTERNS = [
     r"^i have (?:a|an)\s+(.+)$",
 ]
 
+_DELETE_PATTERNS = [
+    r"^forget (?:that )?my (.+)$",
+    r"^forget about my (.+)$",
+    r"^delete my (.+)$",
+    r"^remove my (.+)$",
+    r"^clear my (.+)$",
+    r"^i don'?t want you to remember my (.+)$",
+    r"^stop remembering my (.+)$",
+]
+
+_UPDATE_PATTERNS = [
+    r"^change my (.+?) to (.+)$",
+    r"^update my (.+?) to (.+)$",
+    r"^set my (.+?) to (.+)$",
+]
+
 # =========================================================
 # DYNAMIC-SECTION PATTERNS
 #
@@ -190,6 +206,21 @@ def _prefilter(message):
             if fact:
                 return {"action": "memory", "category": "name", "fact": fact}
 
+    for pat in _DELETE_PATTERNS:
+        m = re.match(pat, lower)
+        if m:
+            query = text[m.start(1):m.end(1)].strip().rstrip(".").strip()
+            if query:
+                return {"action": "delete", "query": query}
+
+    for pat in _UPDATE_PATTERNS:
+        m = re.match(pat, lower)
+        if m:
+            field_query = text[m.start(1):m.end(1)].strip()
+            new_value = text[m.start(2):m.end(2)].strip().rstrip(".").strip()
+            if field_query and new_value:
+                return {"action": "update", "query": field_query, "value": new_value}
+
     for pat in _PREFERENCE_PATTERNS:
         m = re.match(pat, lower)
         if m:
@@ -236,7 +267,7 @@ def decide_action(ask_iris, message, memory, conversation):
     prompt = f"""
 You are the action brain of IRIS, a personal AI assistant.
 
-Choose exactly ONE action: answer, memory, or tool.
+Choose exactly ONE action: answer, memory, delete, update, or tool.
 
 Use "answer" for questions, general knowledge, or normal
 conversation — including questions about stored information.
@@ -262,6 +293,26 @@ User: "my mother's birthday is 12 March"
 
 If in doubt, or the fact doesn't fit any specific domain,
 just use category "fact" with no subject.
+
+Use "delete" when the user wants to forget, delete, remove or
+erase previously stored information. Give either a free-text
+"query" describing what to forget, or a precise "category"
+(plus optional "subject" and "field") naming exactly what to
+remove. Examples:
+
+User: "remove Puffy from my pets"
+{{"action": "delete", "category": "pets", "subject": "Puffy"}}
+
+User: "forget my favorite colour"
+{{"action": "delete", "query": "favorite colour"}}
+
+Use "update" when the user wants to change the value of a
+piece of information that is already stored, rather than add
+something brand new. Give a "query" naming the field and the
+new "value". Example:
+
+User: "change my favourite colour to green"
+{{"action": "update", "query": "favourite colour", "value": "green"}}
 
 Use "tool" only when live computer information is needed.
 Tools: system, ram, disk, cpu, hostname, current_user, ipconfig, windows_version.
@@ -295,10 +346,16 @@ Examples:
         decision = json.loads(match.group())
         action = decision.get("action")
 
-        if action not in {"answer", "memory", "tool"}:
+        if action not in {"answer", "memory", "delete", "update", "tool"}:
             return {"action": "answer"}
 
         if action == "tool" and decision.get("tool") not in TOOLS:
+            return {"action": "answer"}
+
+        if action == "delete" and not decision.get("query") and not decision.get("category"):
+            return {"action": "answer"}
+
+        if action == "update" and not (decision.get("query") and decision.get("value")):
             return {"action": "answer"}
 
         if action == "memory":
