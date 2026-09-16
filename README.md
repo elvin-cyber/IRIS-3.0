@@ -1,7 +1,8 @@
 # IRIS 3.0
 
 ## START
-python main.py
+python main.py for text model in terminal 
+python server.py for voice model ( http://127.0.0.1:5000 )
 
 ## EXIT
 Type: exit

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IRIS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<div class="scanlines"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-name">I.R.I.S.</span>
+    <span class="brand-full">Information &middot; Reasoning &middot; Interaction &middot; System</span>
+  </div>
+  <div class="status-badge" id="ollamaStatus">
+    <span class="status-dot"></span>
+    <span class="status-text">CHECKING</span>
+  </div>
+</header>
+
+<main class="stage">
+
+  <section class="orb-wrap">
+    <div class="orb" id="orb" data-state="idle">
+      <svg class="ring ring-outer" viewBox="0 0 300 300">
+        <circle cx="150" cy="150" r="140" />
+      </svg>
+      <svg class="ring ring-dial" viewBox="0 0 300 300">
+        <circle cx="150" cy="150" r="118" />
+      </svg>
+      <div class="ticks" id="ticks"></div>
+      <svg class="ring ring-inner" viewBox="0 0 300 300">
+        <circle cx="150" cy="150" r="92" />
+      </svg>
+
+      <div class="core">
+        <div class="core-glow"></div>
+        <div class="waveform" id="waveform"></div>
+        <div class="core-label">IRIS</div>
+        <div class="core-state" id="coreState">IDLE</div>
+      </div>
+    </div>
+
+    <button class="mic-btn" id="micBtn" type="button" aria-label="Talk to IRIS">
+      <svg viewBox="0 0 24 24" width="26" height="26">
+        <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z" />
+        <path d="M19 11a7 7 0 0 1-14 0" fill="none" stroke-width="1.6" />
+        <path d="M12 18v3" stroke-width="1.6" />
+      </svg>
+    </button>
+    <p class="mic-hint" id="micHint">Tap the mic and speak, or type below</p>
+  </section>
+
+  <section class="transcript-panel">
+    <div class="transcript" id="transcript"></div>
+    <form class="composer" id="composer" autocomplete="off">
+      <input
+        type="text"
+        id="textInput"
+        placeholder="Type a message to IRIS..."
+        autocomplete="off"
+      />
+      <button type="submit" id="sendBtn" aria-label="Send">SEND</button>
+    </form>
+  </section>
+
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
