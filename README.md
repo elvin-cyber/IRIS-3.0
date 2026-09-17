@@ -1,229 +1,122 @@
-# IRIS 3.0
+# 🌸 IRIS 3.0
 
 ![IRIS](iris.png)
 
-**IRIS = Information · Reasoning · Interaction · System**
-
-A local personal AI assistant with:
-- 🤖 Ollama + `qwen2.5:14b-instruct`
-- 🧠 Persistent memory in `memory/memory.json`
-- 🛠️ Python system tools
-- 💬 Conversation context
-- 🌐 Local web/voice interface
+> **Your local AI assistant — running on your own computer.**
 
 ---
 
-## 1. FIRST-TIME SETUP
+## 🚀 Start Here
 
-Open a terminal **inside the IRIS folder**.
+There are **2 ways to use IRIS**:
+
+| You want to... | Run |
+|---|---|
+| 💻 Chat in the terminal | `python main.py` |
+| 🌐 Use the website | `python server.py` |
+
+Before starting, make sure **Ollama is installed and running**.
+
+---
+
+# 1️⃣ First-Time Setup
+
+Open **PowerShell / Terminal** inside the IRIS folder.
+
+### Install Python packages
 
 ```bash
 pip install -r requirements.txt
+```
+
+### Download the AI model
+
+```bash
 ollama pull qwen2.5:14b-instruct
 ```
 
-Make sure Ollama is running:
+### Check that Ollama sees the model
 
 ```bash
-ollama serve
+ollama list
 ```
 
-> If Ollama is already running as a background service, do not start a second `ollama serve`.
+You should see:
+
+```text
+qwen2.5:14b-instruct
+```
 
 ---
 
-## 2. RUN IRIS — TERMINAL
+# 2️⃣ 💻 Use IRIS in the Terminal
+
+Run:
 
 ```bash
 python main.py
 ```
 
-You will see:
+You should see something like:
 
 ```text
 IRIS: Hello ...
 You:
 ```
 
-Type your message:
+Now simply type:
 
 ```text
-You: what is my favorite colour?
+You: Hello IRIS
 ```
 
-### Exit
+### 🛑 Stop IRIS
+
+Press:
+
+```text
+Ctrl + C
+```
+
+or type:
 
 ```text
 exit
 ```
 
-or:
-
-```text
-quit
-bye
-```
-
 ---
 
-## 3. RUN IRIS — FRONT END
+# 3️⃣ 🌐 Use the IRIS Website
 
-Start the web server:
+Start the server:
 
 ```bash
 python server.py
 ```
 
-Then open:
+Then open your browser:
 
-**http://127.0.0.1:5000**
+👉 **http://127.0.0.1:5000**
 
-### Front-end controls
+### In the website
 
-| Action | How |
-|---|---|
-| Type | Enter message → **SEND** |
-| Voice input | Click 🎙️ → speak |
-| Voice output | IRIS speaks the reply |
-| Status | `MODEL ONLINE` = Ollama reachable |
-| Stop server | `Ctrl + C` in terminal |
+**💬 Text**
+1. Type your message.
+2. Click **SEND**.
 
-Voice input works with **Chrome/Edge** using the browser Web Speech API.
+**🎙️ Voice**
+1. Click the microphone.
+2. Speak.
+3. IRIS processes your request.
+4. IRIS can speak the response.
 
----
+**🟢 MODEL ONLINE**
 
-## 4. HOW IRIS WORKS
+Means the website can communicate with the AI backend.
 
-```text
-YOU
- │
- ├── Terminal → main.py
- │
- └── Browser → server.py → API
-                         │
-                         ▼
-                    core/iris.py
-                         │
-              ┌──────────┼──────────┐
-              ▼          ▼          ▼
-           Actions     Memory     Tools
-              │          │          │
-              └──────────┼──────────┘
-                         ▼
-                       Ollama
-                         │
-                         ▼
-                      RESPONSE
-```
+### 🛑 Stop the website
 
-### Main files
-
-| File | Purpose |
-|---|---|
-| `main.py` | Terminal interface |
-| `server.py` | Local web server/API |
-| `core/iris.py` | Main IRIS logic |
-| `core/actions.py` | Detects memory/tool/question actions |
-| `core/ollama.py` | Connects to Ollama |
-| `core/context.py` | Recent conversation |
-| `memory/manager.py` | Saves/updates/deletes memory |
-| `memory/memory.json` | Persistent memory data |
-| `tools/system_tools.py` | System information/tools |
-| `static/index.html` | Front-end page |
-| `static/style.css` | Front-end design |
-| `static/app.js` | Front-end behavior/voice |
-
----
-
-## 5. MEMORY
-
-IRIS stores long-term information here:
-
-```text
-memory/memory.json
-```
-
-Examples:
-
-```text
-my name is John
-my favorite colour is blue
-I'm learning Linux
-my mother's name is Mary
-```
-
-Useful commands to IRIS:
-
-```text
-What do you remember about me?
-Change my name to John
-Forget my favorite colour
-```
-
-**Important:** `memory.json` contains personal data. Back it up before editing or deleting it manually.
-
----
-
-## 6. SYSTEM TOOLS
-
-IRIS can answer live system questions such as:
-
-```text
-What is my RAM usage?
-How much disk space do I have?
-What is my CPU?
-What is my hostname?
-What is my IP address?
-What Windows version am I using?
-```
-
-These are handled by Python tools rather than asking the AI to guess.
-
----
-
-## 7. TROUBLESHOOTING
-
-### Ollama error
-
-```text
-I can't connect to Ollama.
-```
-
-Check:
-
-```bash
-ollama list
-```
-
-Start Ollama:
-
-```bash
-ollama serve
-```
-
-Check the model:
-
-```bash
-ollama run qwen2.5:14b-instruct
-```
-
-### Web page not opening
-
-Make sure this is running:
-
-```bash
-python server.py
-```
-
-Then open:
-
-```text
-http://127.0.0.1:5000
-```
-
-### Stop everything
-
-In the terminal running IRIS/server:
+Go back to the terminal running `server.py` and press:
 
 ```text
 Ctrl + C
@@ -231,52 +124,274 @@ Ctrl + C
 
 ---
 
-## 8. QUICK REFERENCE
+# 4️⃣ 🧠 How IRIS Works
 
-### Terminal
+Think of IRIS like this:
 
-```bash
-pip install -r requirements.txt
-ollama pull qwen2.5:14b-instruct
-python main.py
+```text
+             YOU
+              │
+       ┌──────┴──────┐
+       ▼             ▼
+   💻 Terminal    🌐 Website
+    main.py       server.py
+       │             │
+       └──────┬──────┘
+              ▼
+        🧠 IRIS CORE
+       core/iris.py
+              │
+       ┌──────┼──────┐
+       ▼      ▼      ▼
+    🧠 Memory 🛠️ Tools 🤖 AI
+       │      │      │
+       └──────┼──────┘
+              ▼
+           Ollama
+              │
+              ▼
+           Response
 ```
 
-### Front end
+### Remember this:
+
+```text
+main.py   → Terminal
+server.py → Website
+core/     → IRIS logic
+memory/   → Long-term memory
+tools/    → Computer/system tools
+Ollama    → AI model
+static/   → Website files
+```
+
+---
+
+# 5️⃣ 🧠 IRIS Memory
+
+IRIS keeps long-term memory in:
+
+```text
+memory/memory.json
+```
+
+You can tell IRIS:
+
+```text
+Remember that my name is John.
+```
+
+Ask:
+
+```text
+What do you remember about me?
+```
+
+Change something:
+
+```text
+Change my name to Alex.
+```
+
+Forget something:
+
+```text
+Forget my name.
+```
+
+⚠️ **Do not delete `memory.json` unless you want to remove the stored memory.**
+
+---
+
+# 6️⃣ 🛠️ System Tools
+
+IRIS can use Python tools to obtain information from your computer.
+
+For example:
+
+```text
+What is my CPU?
+What is my RAM usage?
+How much disk space do I have?
+What is my hostname?
+What is my IP address?
+```
+
+The important idea:
+
+```text
+Question
+   ↓
+IRIS decides what is needed
+   ↓
+Python tool gets information
+   ↓
+IRIS gives you the answer
+```
+
+---
+
+# 7️⃣ 📁 Important Files
+
+| File / Folder | What it does |
+|---|---|
+| `main.py` | 💻 Terminal interface |
+| `server.py` | 🌐 Web server |
+| `core/iris.py` | 🧠 Main IRIS logic |
+| `core/actions.py` | 🔎 Handles actions |
+| `core/ollama.py` | 🤖 Talks to Ollama |
+| `core/context.py` | 💬 Conversation context |
+| `memory/manager.py` | 🧠 Manages memory |
+| `memory/memory.json` | 💾 Saved memory |
+| `tools/system_tools.py` | 🛠️ System information |
+| `static/index.html` | 🌐 Website structure |
+| `static/style.css` | 🎨 Website design |
+| `static/app.js` | ⚙️ Website behavior |
+
+---
+
+# 8️⃣ 🔧 Ollama Commands
+
+### See installed models
+
+```bash
+ollama list
+```
+
+### Download IRIS's model
+
+```bash
+ollama pull qwen2.5:14b-instruct
+```
+
+### Test the model directly
+
+```bash
+ollama run qwen2.5:14b-instruct
+```
+
+### Start Ollama manually
+
+```bash
+ollama serve
+```
+
+⚠️ If Ollama is already running, you **do not need** another `ollama serve`.
+
+---
+
+# 9️⃣ ❌ Troubleshooting
+
+### IRIS cannot connect to Ollama
+
+Try:
+
+```bash
+ollama list
+```
+
+If Ollama isn't running:
+
+```bash
+ollama serve
+```
+
+Then test:
+
+```bash
+ollama run qwen2.5:14b-instruct
+```
+
+---
+
+### 🌐 Website doesn't open
+
+Make sure this is running:
 
 ```bash
 python server.py
 ```
 
-Open:
+Then visit:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-### Ollama
+---
+
+### 📦 Python package error
+
+Run:
 
 ```bash
-ollama serve
-ollama list
-ollama run qwen2.5:14b-instruct
-```
-
-### Exit
-
-```text
-exit
+pip install -r requirements.txt
 ```
 
 ---
 
-## 9. SIMPLE RULE TO REMEMBER
+# 🔟 ⚡ Quick Cheat Sheet
+
+## Start terminal IRIS
+
+```bash
+python main.py
+```
+
+## Start website
+
+```bash
+python server.py
+```
+
+## Open website
 
 ```text
-main.py   = Terminal IRIS
-server.py = Browser IRIS
-Ollama    = AI model
-core/     = IRIS brain
-memory/   = Long-term memory
-tools/    = System information
-static/   = Front end
+http://127.0.0.1:5000
 ```
+
+## Check Ollama
+
+```bash
+ollama list
+```
+
+## Start Ollama
+
+```bash
+ollama serve
+```
+
+## Stop anything running in terminal
+
+```text
+Ctrl + C
+```
+
+---
+
+# 🧩 The One-Minute Explanation
+
+If you forget everything else, remember:
+
+```text
+👤 YOU
+ │
+ ▼
+💻 main.py       → Terminal
+🌐 server.py     → Website
+ │
+ ▼
+🧠 core/iris.py  → IRIS's main logic
+ │
+ ├── 🧠 memory/  → Remembers things
+ ├── 🛠️ tools/   → Checks your computer
+ │
+ ▼
+🤖 Ollama        → Runs the AI model
+ │
+ ▼
+💬 IRIS RESPONSE
+```
+
+**That's IRIS. 🌸**
