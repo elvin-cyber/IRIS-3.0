@@ -88,10 +88,15 @@ def load():
 
 
 def save(data):
-    FILE.write_text(
+    """Atomic write: write to a temp file first, then replace the
+    real file. Prevents a crash mid-write from corrupting or
+    truncating memory.json."""
+    tmp = FILE.with_suffix(".json.tmp")
+    tmp.write_text(
         json.dumps(data, indent=4, ensure_ascii=False),
         encoding="utf-8"
     )
+    tmp.replace(FILE)
 
 
 def get_user_name():
@@ -129,6 +134,7 @@ def _merge_fact_into_dict(entry, fact):
 
 
 def add_memory(category, fact, subject=None):
+    """Create/append. (Create)"""
     data = load()
     fact = str(fact).strip()
     subject = str(subject).strip() if subject else None
@@ -240,128 +246,8 @@ def get_full_memory():
 
 def _iter_leaves(data, path=""):
     """Yield (path, container, key_or_index, value) for every node in
-    the memory tree, so delete-by-query can search dict keys, nested
-    entries and list items in one pass."""
-    if isinstance(data, dict):
-        for k, v in data.items():
-            new_path = f"{path}.{k}" if path else k
-            yield (new_path, data, k, v)
-            yield from _iter_leaves(v, new_path)
-    elif isinstance(data, list):
-        for i, item in enumerate(data):
-            new_path = f"{path}[{i}]"
-            yield (new_path, data, i, item)
-            yield from _iter_leaves(item, new_path)
-
-
-def delete_memory(category, subject=None, field=None):
-    """Precise delete. (Delete)
-
-    - category only            -> removes the whole top-level section
-    - category + field         -> removes one key from a dict section
-    - category + subject       -> removes one entry (list item or
-                                   dict sub-entry) matching that subject
-    - category + subject+field -> removes one field from that entry
-    Returns True if something was actually removed, False otherwise.
-    """
-    data = load()
-    section_key = _normalize_key(category)
-    if section_key not in data:
-        return False
-    section = data[section_key]
-
-    if subject:
-        sub_norm = _normalize_key(subject)
-        if isinstance(section, list):
-            match = None
-            for item in section:
-                if isinstance(item, dict) and _normalize_key(str(item.get("name", ""))) == sub_norm:
-                    match = item
-                    break
-            if match is None:
-                return False
-            if field:
-                if field not in match:
-                    return False
-                del match[field]
-            else:
-                section.remove(match)
-        elif isinstance(section, dict):
-            entry = section.get(sub_norm)
-            if entry is None:
-                return False
-            if field:
-                if not isinstance(entry, dict) or field not in entry:
-                    return False
-                del entry[field]
-            else:
-                del section[sub_norm]
-        else:
-            return False
-    elif field:
-        if isinstance(section, dict) and field in section:
-            del section[field]
-        elif isinstance(section, list) and field in section:
-            section.remove(field)
-        else:
-            return False
-    else:
-        del data[section_key]
-
-    save(data)
-    return True
-
-
-def delete_by_query(query):
-    """Fuzzy delete for free-text requests like 'forget my favorite
-    colour' or 'delete puffy'. Searches every key, sub-entry and list
-    item for a normalized match and removes the first hit. Returns a
-    short path string describing what was removed, or None if nothing
-    matched. (Delete)"""
-    data = load()
-    norm_query = _normalize_key(query)
-    if not norm_query:
-        return None
-
-    for path, container, key, value in _iter_leaves(data):
-        if isinstance(container, dict):
-            key_norm = _normalize_key(str(key))
-            if key_norm == norm_query or norm_query in key_norm or key_norm in norm_query:
-                del container[key]
-                save(data)
-                return path
-            if isinstance(value, dict):
-                name_norm = _normalize_key(str(value.get("name", "")))
-                if name_norm and name_norm == norm_query:
-                    del container[key]
-                    save(data)
-                    return path
-        elif isinstance(container, list):
-            if isinstance(value, dict):
-                name_norm = _normalize_key(str(value.get("name", "")))
-                if name_norm and name_norm == norm_query:
-                    container.remove(value)
-                    save(data)
-                    return path
-            else:
-                item_norm = _normalize_key(str(value))
-                if item_norm and (item_norm == norm_query or norm_query in item_norm):
-                    container.remove(value)
-                    save(data)
-                    return path
-
-    return None
-
-
-def get_full_memory():
-    """Return the entire raw memory dict. (Read)"""
-    return load()
-
-
-def _iter_leaves(data, path=""):
-    """Yield (path, container, key_or_index, value) for every node in
-    the memory tree, so fuzzy search can look at dict keys, nested
-    entries and list items in one pass."""
+    the memory tree, so update/delete-by-query can search dict keys,
+    nested entries and list items in one pass."""
     if isinstance(data, dict):
         for k, v in data.items():
             new_path = f"{path}.{k}" if path else k
@@ -429,6 +315,24 @@ def _immediate_parent_name(path):
     return None
 
 
+def _composite_label(path, container, key):
+    """Human-friendly label to combine with a leaf key for composite
+    matching -- e.g. 'mother' for family.mother.name (a dict nested
+    under a named dict key), or a named list entry's own name
+    ('puffy') for pets[0].breed, so 'change puffy's breed' resolves
+    correctly instead of only matching a bare 'breed' key.
+
+    The entry's own "name" field is used for every OTHER field on
+    that entry, but never for the "name" field itself -- otherwise
+    "family.mother.name" would label itself with its own value
+    ("nicy antony") instead of its structural parent ("mother").
+    """
+    if key != "name" and isinstance(container, dict) and container.get("name"):
+        return _norm_for_search(str(container["name"]))
+    parent = _immediate_parent_name(path)
+    return _norm_for_search(parent) if parent else None
+
+
 def _find_target(data, norm_query, exact_only=False):
     """Search the memory tree for the best match to norm_query.
     Tries an EXACT normalized match first across every dict key,
@@ -442,9 +346,9 @@ def _find_target(data, norm_query, exact_only=False):
     for path, container, key, value in _iter_leaves(data):
         if isinstance(container, dict):
             key_norm = _norm_for_search(str(key))
-            parent = _immediate_parent_name(path)
-            composite = _norm_for_search(f"{parent}_{key}") if parent else None
-            if key_norm == norm_query or (composite and composite == norm_query):
+            composite = _composite_label(path, container, key)
+            composite_norm = _norm_for_search(f"{composite}_{key}") if composite else None
+            if key_norm == norm_query or (composite_norm and composite_norm == norm_query):
                 return (container, key, path)
             if isinstance(value, dict):
                 name_norm = _norm_for_search(str(value.get("name", "")))
@@ -556,10 +460,11 @@ def delete_by_query(query):
 
 def update_by_query(query, value):
     """Fuzzy update for free-text requests like 'change my favourite
-    colour to green'. Only ever overwrites an existing plain field
-    (never a whole section or named entry, to avoid clobbering
-    structured data). Returns a path string on success, or None if no
-    matching field exists yet. (Update)"""
+    colour to green' or "change puffy's breed to spitz". Only ever
+    overwrites an existing plain field (never a whole section or
+    named entry, to avoid clobbering structured data). Returns a
+    path string on success, or None if no matching field exists yet.
+    (Update)"""
     data = load()
     norm_query = _norm_for_search(query)
     if not norm_query:
@@ -570,9 +475,9 @@ def update_by_query(query, value):
             if not isinstance(container, dict) or isinstance(val, (dict, list)):
                 continue
             key_norm = _norm_for_search(str(key))
-            parent = _immediate_parent_name(path)
-            composite = _norm_for_search(f"{parent}_{key}") if parent else None
-            if key_norm == norm_query or (composite and composite == norm_query):
+            composite = _composite_label(path, container, key)
+            composite_norm = _norm_for_search(f"{composite}_{key}") if composite else None
+            if key_norm == norm_query or (composite_norm and composite_norm == norm_query):
                 return (container, key, path)
             if not exact_only:
                 shorter, longer = (key_norm, norm_query) if len(key_norm) <= len(norm_query) else (norm_query, key_norm)

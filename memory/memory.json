@@ -16,7 +16,7 @@
     ],
     "personal": {
         "favorite_colour": "violet",
-        "favorite_movie": "Iron Man",
+        "favorite_film": "avatar",
         "favorite_food": [
             "biriyani",
             "shwarma"
@@ -33,7 +33,7 @@
             "name": "Nicy Antony"
         },
         "sister": {
-            "name": "Emerin Joy"
+            "name": "emerin joy"
         },
         "father": {
             "name": "joy paul"
@@ -53,8 +53,7 @@
         "company_address": "1614 Parklane Tower, Business Bay, Dubai"
     },
     "facts": [
-        "my fav movie is iron man",
-        "change my moms name to NIcy"
+        "favorite film: avatar"
     ],
     "hobbies": {
         "listening_to_music_and_playing_games": "listening to music and playing games"

@@ -64,6 +64,41 @@ _UPDATE_PATTERNS = [
 ]
 
 # =========================================================
+# LEADING-FILLER STRIPPING
+#
+# The deterministic patterns above are anchored to the start
+# of the message ("^change my ..."), so a message wrapped in
+# ordinary politeness/address ("Hey IRIS, please change my
+# mother's name to Nicy") used to fall straight through to the
+# LLM path instead of hitting the fast, reliable regex path.
+# Strip this filler once, up front, before any pattern is tried.
+# =========================================================
+
+_LEAD_FILLER_PATTERNS = [
+    r"^(?:hey|hi|ok(?:ay)?)\s+iris[,!]?\s*",
+    r"^iris[,!]?\s*",
+    r"^(?:please|kindly|just)\s+",
+    r"^(?:can|could|would) you\s+(?:please\s+)?",
+]
+_LEAD_FILLER_RE = [re.compile(p, re.IGNORECASE) for p in _LEAD_FILLER_PATTERNS]
+
+
+def _strip_lead_filler(text):
+    """Strip leading conversational wrapping ("Hey IRIS,", "please",
+    "can you ...") from TEXT while preserving its original casing, so
+    the deterministic patterns below -- which capture verbatim casing
+    straight out of what's left -- still line up correctly."""
+    changed = True
+    while changed:
+        changed = False
+        for pat in _LEAD_FILLER_RE:
+            new_text = pat.sub("", text, count=1)
+            if new_text != text:
+                text = new_text
+                changed = True
+    return text
+
+# =========================================================
 # DYNAMIC-SECTION PATTERNS
 #
 # These catch common, high-confidence phrasings and route
@@ -189,7 +224,11 @@ def _is_question(text_lower):
 
 
 def _prefilter(message):
-    text = message.strip()
+    # Strip leading wrapping ("Hey IRIS,", "please", "can you ...")
+    # from the real-cased text FIRST, then lowercase what's left --
+    # this keeps text/lower in lockstep so captured spans still
+    # index correctly into the original casing.
+    text = _strip_lead_filler(message.strip())
     lower = text.lower()
 
     # Statement patterns take priority — e.g. "my name is X"
@@ -307,12 +346,28 @@ User: "forget my favorite colour"
 {{"action": "delete", "query": "favorite colour"}}
 
 Use "update" when the user wants to change the value of a
-piece of information that is already stored, rather than add
-something brand new. Give a "query" naming the field and the
-new "value". Example:
+piece of information that is ALREADY STORED, rather than add
+something brand new. Give a "query" naming the specific field
+and the new "value".
+
+IMPORTANT — resolving vague references: if the user says
+"change THAT to X", "update IT to X", or "set THIS to X"
+without naming the field, look at the recent conversation
+below to figure out which specific field they mean (usually
+whatever was just asked about or mentioned), and put that
+resolved field name in "query" — never the pronoun itself.
+If you genuinely cannot tell what "that"/"it" refers to from
+the conversation, use "answer" instead and ask the user to
+clarify, rather than guessing. Examples:
 
 User: "change my favourite colour to green"
 {{"action": "update", "query": "favourite colour", "value": "green"}}
+
+Recent conversation:
+User: "what is my mother's name?"
+IRIS: "Your mother's name is Nicy Antony."
+User message: "change that to Nicy"
+{{"action": "update", "query": "mother's name", "value": "Nicy"}}
 
 Use "tool" only when live computer information is needed.
 Tools: system, ram, disk, cpu, hostname, current_user, ipconfig, windows_version.
@@ -357,6 +412,14 @@ Examples:
 
         if action == "update" and not (decision.get("query") and decision.get("value")):
             return {"action": "answer"}
+
+        if action == "update":
+            # Never let the LLM pass a bare pronoun through as the
+            # field name — if it ignored the resolution instruction
+            # above, fall back to "answer" rather than let it fail
+            # silently further down the pipeline.
+            if re.fullmatch(r"(that|it|this|those|these)", decision.get("query", "").strip().lower()):
+                return {"action": "answer"}
 
         if action == "memory":
             category = decision.get("category")
